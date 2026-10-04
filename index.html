@@ -69,27 +69,56 @@ function showLine(x,silent=false){
 }
 function escapeHtml(s){return s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function gap(text){const words=text.split(/\s+/).length;return Math.max(1200,Math.min(9000,500+words*390/Number(speed.value)))}
-async function say(x,myToken){
- const cfg=people[x.actor];
- const v=await getVoice(x.actor);
- status.textContent="Préparation de "+x.actor+" — "+v.name+"…";
- const chunks=[];
- await tts.generate(x.text,{voice:v.ref,onChunk:(chunk)=>chunks.push(new Float32Array(chunk))});
- if(myToken!==token)return;
- const wav=chunksToWavBlob(chunks,tts.sampleRate);
- audio=new Audio(URL.createObjectURL(wav));
- audio.playbackRate=cfg.rate*Number(speed.value);
+const audioCache=new Map();
+let preparing=null;
+async function prepareLine(k){
+ if(k<0||k>=dialogue.length)return null;
+ const x=dialogue[k];
+ if(x.actor===role.value)return null;
+ if(audioCache.has(k))return audioCache.get(k);
+ if(preparing&&preparing.k===k)return preparing.promise;
+ const promise=(async()=>{
+   const cfg=people[x.actor],v=await getVoice(x.actor),chunks=[];
+   await tts.generate(x.text,{voice:v.ref,onChunk:(chunk)=>chunks.push(new Float32Array(chunk))});
+   const item={url:URL.createObjectURL(chunksToWavBlob(chunks,tts.sampleRate)),rate:cfg.rate};
+   audioCache.set(k,item);
+   if(audioCache.size>12){const first=audioCache.keys().next().value;if(first!==k){URL.revokeObjectURL(audioCache.get(first).url);audioCache.delete(first)}}
+   return item;
+ })();
+ preparing={k,promise};
+ try{return await promise}finally{if(preparing&&preparing.k===k)preparing=null}
+}
+function nextSpoken(from){
+ for(let k=from;k<dialogue.length;k++)if(dialogue[k].actor!==role.value)return k;
+ return -1;
+}
+async function playPrepared(k,myToken){
+ status.textContent="Préparation…";
+ const item=await prepareLine(k);
+ if(!item||myToken!==token)return;
+ audio=new Audio(item.url);
+ audio.playbackRate=item.rate*Number(speed.value);
  await audio.play();
+ const next=nextSpoken(k+1);
+ if(next>=0&&!audioCache.has(next))prepareLine(next).catch(()=>{});
  await new Promise(r=>{audio.onended=r;audio.onerror=r});
  status.textContent="Lecture…";
 }
 async function loop(){
  if(!tts){status.textContent="Le moteur vocal n'est pas encore prêt.";return}
  running=true;const my=++token;status.textContent="Lecture…";
+ const first=nextSpoken(i);if(first>=0)prepareLine(first).catch(()=>{});
  while(running&&i<dialogue.length&&my===token){
-   const x=dialogue[i], mine=x.actor===role.value; showLine(x,mine);
-   try{if(mine) await sleep(gap(x.text)); else await say(x,my)}catch(e){status.innerHTML='<span class="err">Erreur voix : '+escapeHtml(String(e))+'</span>';running=false;break}
-   if(running&&my===token){i++;await sleep(500)}
+   const x=dialogue[i],mine=x.actor===role.value;showLine(x,mine);
+   try{
+     if(mine)await sleep(gap(x.text));
+     else await playPrepared(i,my);
+   }catch(e){status.innerHTML='<span class="err">Erreur voix : '+escapeHtml(String(e))+'</span>';running=false;break}
+   if(running&&my===token){
+     i++;
+     /* délai très court : la respiration entre deux répliques */
+     if(i<dialogue.length&&dialogue[i].actor!==role.value)await sleep(90);
+   }
  }
  if(i>=dialogue.length){running=false;status.innerHTML='<span class="ok">Fin du texte.</span>'}
 }
