@@ -1,16 +1,27 @@
-<!doctype html>
-<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Panique en coulisses — Répétiteur</title><style>
-body{font-family:system-ui,sans-serif;background:#10131a;color:#f4f4f4;margin:0;padding:18px}main{max-width:760px;margin:auto}.card{background:#1b202b;border-radius:16px;padding:18px;margin:12px 0}h1{font-size:1.7rem}button,select,input{font-size:1rem;padding:11px;border-radius:10px;border:0;margin:5px}button{background:#f3c44e;color:#111;font-weight:700}.stop{background:#e66}.line{padding:12px;border-left:4px solid #f3c44e;margin:8px 0;background:#141923}.mine{opacity:.5}.status{font-weight:700}.controls{display:flex;flex-wrap:wrap;gap:5px}small{opacity:.75}</style></head>
-<body><main><h1>🎭 Panique en coulisses</h1><p>Répétiteur — test web mobile</p>
-<div class="card"><label>Je répète : <select id="role"></select></label><div class="controls"><button id="start">▶ Démarrer</button><button id="prev">⏮ Précédente</button><button class="stop" id="stop">■ Stop</button><button id="prompt">💡 Souffleur</button></div><label>Vitesse <input id="rate" type="range" min=".7" max="1.3" step=".05" value="1"></label><p class="status" id="status">Prêt.</p></div>
-<div class="card"><h2>Voix détectées</h2><p id="voices">Chargement…</p><small>Cette première version vérifie le fonctionnement du site sur le Samsung. Les voix IA seront l'étape suivante.</small></div><div class="card"><h2>Scène test</h2><div id="scene"></div></div></main>
-<script>
-const chars=["CHRISTIAN","CAROLE","FLORENCE","PASCALE","PATRICE","PHILIPPE"],lines=[["FLORENCE","Mais t'es vraiment conne !"],["CAROLE","Et toi t'es vraiment une pauvre fille !"],["CHRISTIAN","STOP ! STOP ! STOP !"],["CHRISTIAN","Le texte ! On respecte le texte !"],["FLORENCE","Mais on essayait de mettre un peu de naturel."],["CHRISTIAN","Du naturel, oui. Mais du naturel écrit !"],["CAROLE","Ça commence bien."],["CHRISTIAN","On reprend. Et cette fois : le texte !"]];let i=0,running=false,lastOwn="";
-const role=document.querySelector("#role");chars.forEach(c=>role.add(new Option(c[0]+c.slice(1).toLowerCase(),c)));role.value="CHRISTIAN";
-function draw(){scene.innerHTML=lines.map((l,n)=>'<div class="line '+(l[0]===role.value?'mine':'')+'" id="l'+n+'"><b>'+l[0]+'</b> — '+l[1]+'</div>').join("")}role.onchange=draw;draw();
-function voices(){let v=speechSynthesis.getVoices().filter(x=>x.lang.toLowerCase().startsWith("fr"));document.querySelector("#voices").textContent=v.length?v.length+" voix françaises : "+v.map(x=>x.name).join(", "):"Aucune voix française détectée pour l'instant."}speechSynthesis.onvoiceschanged=voices;voices();
-const wait=ms=>new Promise(r=>setTimeout(r,ms));function speak(t){return new Promise(res=>{let u=new SpeechSynthesisUtterance(t);u.lang="fr-FR";u.rate=Number(rate.value);u.onend=res;u.onerror=res;speechSynthesis.speak(u)})}
-async function run(){running=true;for(;i<lines.length&&running;i++){status.textContent=lines[i][0]+"…";document.querySelector("#l"+i).scrollIntoView({behavior:"smooth",block:"center"});if(lines[i][0]===role.value){lastOwn=lines[i][1];await wait(Math.max(1400,lines[i][1].split(/\s+/).length*430/Number(rate.value)))}else await speak(lines[i][1]);await wait(250)}if(i>=lines.length){running=false;i=0;status.textContent="Fin de la scène test."}}
-start.onclick=()=>{if(!running)run()};stop.onclick=()=>{running=false;speechSynthesis.cancel();status.textContent="Arrêté."};prev.onclick=()=>{running=false;speechSynthesis.cancel();i=Math.max(0,i-1);status.textContent="Réplique précédente prête."};prompt.onclick=()=>status.textContent=lastOwn?"💡 "+lastOwn:"Pas encore de réplique à souffler.";
-</script></body></html>
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Test voix IA — Panique en coulisses</title><style>
+body{font-family:system-ui;background:#10131a;color:#f5f5f5;margin:0;padding:18px}main{max-width:760px;margin:auto}.card{background:#1b202b;border-radius:18px;padding:18px;margin:14px 0}button{font-size:1rem;padding:13px 16px;border:0;border-radius:12px;background:#f6c64e;font-weight:750;margin:6px 4px}.voice{display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid #333;padding:9px 0}.ok{color:#75df9a}.err{color:#ff8585}#log{white-space:pre-wrap;font-size:.92rem}small{opacity:.72}</style></head><body><main>
+<h1>🎭 Panique en coulisses</h1><p><b>Test des voix IA Piper</b></p>
+<div class="card"><p id="state">Chargement du moteur IA…</p><div id="voices"></div><p id="log"></p></div>
+<div class="card"><b>Important</b><p>Au premier essai d'une voix, le téléphone doit télécharger son modèle. Cela peut prendre un moment. Ensuite il est mis en cache dans le navigateur.</p><small>Test technique avant intégration du texte complet.</small></div>
+<script type="module">
+const people=[
+["Christian","fr_FR-tom-medium","Christian, on reprend depuis le début. Et cette fois, le texte !"],
+["Patrice","fr_FR-gilles-low","Bon, on peut peut-être essayer de travailler maintenant ?"],
+["Philippe","fr_FR-tom-medium","Je plaisante, bien sûr ! Je plaisante !"],
+["Carole","fr_FR-siwis-medium","Très bien. Alors on va se démerder."],
+["Florence","fr_FR-upmc-medium","Bon… ben moi, je crois qu'on a tous besoin d'un verre !"],
+["Pascale","fr_FR-mls-medium","Ouais… ben je vais reprendre un Doliprane."]
+];
+const state=document.querySelector("#state"), box=document.querySelector("#voices"), log=document.querySelector("#log");
+people.forEach(([name])=>{const d=document.createElement("div");d.className="voice";d.innerHTML='<b>'+name+'</b><button data-name="'+name+'">▶ Tester</button>';box.appendChild(d)});
+let tts=null;
+try{
+ state.textContent="Chargement de Piper…";
+ tts=await import("https://cdn.jsdelivr.net/npm/@mintplex-labs/piper-tts-web@1.0.5/+esm");
+ state.innerHTML='<span class="ok">✓ Moteur chargé. Choisis une voix.</span>';
+}catch(e){state.innerHTML='<span class="err">✗ Le moteur n’a pas pu se charger.</span>';log.textContent=String(e)}
+box.addEventListener("click",async e=>{const b=e.target.closest("button");if(!b||!tts)return;const p=people.find(x=>x[0]===b.dataset.name);b.disabled=true;state.textContent="Préparation de "+p[0]+"… premier chargement parfois long.";
+ try{const wav=await tts.predict({text:p[2],voiceId:p[1]},prog=>{if(prog?.total)state.textContent=p[0]+" : téléchargement "+Math.round(prog.loaded*100/prog.total)+" %"});const a=new Audio(URL.createObjectURL(wav));await a.play();state.innerHTML='<span class="ok">✓ '+p[0]+' fonctionne.</span>';log.textContent=""}
+ catch(err){state.innerHTML='<span class="err">✗ Erreur avec '+p[0]+'.</span>';log.textContent=String(err)}
+ finally{b.disabled=false}});
+</script></main></body></html>
