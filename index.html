@@ -16,8 +16,8 @@ const state=document.querySelector("#state"), box=document.querySelector("#voice
 people.forEach(([name])=>{const d=document.createElement("div");d.className="voice";d.innerHTML='<b>'+name+'</b><button data-name="'+name+'">▶ Tester</button>';box.appendChild(d)});
 let tts=null;
 try{
- state.textContent="Chargement de Piper…";
- tts=await import("https://cdn.jsdelivr.net/npm/@mintplex-labs/piper-tts-web@1.0.5/+esm");
+ state.textContent="Chargement de Piper corrigé…";
+ tts=await import("https://cdn.jsdelivr.net/npm/@realtimex/piper-tts-web@1.1.1/+esm");
  state.innerHTML='<span class="ok">✓ Moteur chargé. Choisis une voix.</span>';
 }catch(e){state.innerHTML='<span class="err">✗ Le moteur n’a pas pu se charger.</span>';log.textContent=String(e)}
 box.addEventListener("click",async e=>{const b=e.target.closest("button");if(!b||!tts)return;const p=people.find(x=>x[0]===b.dataset.name);b.disabled=true;state.textContent="Préparation de "+p[0]+"… premier chargement parfois long.";
