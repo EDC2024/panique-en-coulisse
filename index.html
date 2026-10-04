@@ -1,5 +1,14 @@
 <!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Panique en coulisses — Répétiteur</title><style>
-:root{font-family:system-ui,sans-serif}body{margin:0;background:#10131a;color:#f5f5f5}main{max-width:760px;margin:auto;padding:18px}.card{background:#1b202b;border-radius:20px;padding:18px;margin:14px 0}h1{font-size:2rem;margin:.4em 0}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}button,select,input{font:inherit}button{padding:13px 16px;border:0;border-radius:12px;background:#f6c64e;font-weight:800}button.stop{background:#f16767}button.secondary{background:#e8e8e8}select{padding:12px;border-radius:12px;font-size:1.05rem}input[type=range]{width:210px}.line{font-size:1.2rem;line-height:1.45}.who{font-weight:800;color:#f6c64e}.muted{opacity:.7}.ok{color:#7ee39b}.err{color:#ff8585}.progress{font-size:.95rem;opacity:.75}.hint{background:#252c39;padding:12px;border-radius:12px;margin-top:12px;display:none}.voicegrid{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}.voicegrid button{padding:8px 12px}label{font-weight:700}#jump{width:90px;padding:10px;border-radius:10px;border:0}</style></head><body><main>
+:root{font-family:system-ui,sans-serif}body{margin:0;background:#10131a;color:#f5f5f5}main{max-width:760px;margin:auto;padding:18px}.card{background:#1b202b;border-radius:20px;padding:18px;margin:14px 0}h1{font-size:2rem;margin:.4em 0}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}button,select,input{font:inherit}button{padding:13px 16px;border:0;border-radius:12px;background:#f6c64e;font-weight:800}button.stop{background:#f16767}button.secondary{background:#e8e8e8}select{padding:12px;border-radius:12px;font-size:1.05rem}input[type=range]{width:210px}.line{font-size:1.2rem;line-height:1.45}.who{font-weight:800;color:#f6c64e}.muted{opacity:.7}.ok{color:#7ee39b}.err{color:#ff8585}.progress{font-size:.95rem;opacity:.75}.hint{background:#252c39;padding:12px;border-radius:12px;margin-top:12px;display:none}.voicegrid{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}.voicegrid button{padding:8px 12px}label{font-weight:700}#jump{width:90px;padding:10px;border-radius:10px;border:0}
+.script{max-height:58vh;overflow-y:auto;scroll-behavior:smooth;padding:4px 2px}
+.scriptline{padding:10px 12px;margin:3px 0;border-radius:10px;line-height:1.4;border-left:3px solid transparent}
+.scriptline .num{opacity:.45;font-size:.78rem;margin-right:7px}
+.scriptline.active{background:#30394a;border-left-color:#f6c64e}
+.scriptline.mine{background:#242a35}
+.scriptline.mine .txt{opacity:.72}
+.scriptline.active.mine{background:#3b3422}
+.scriptline{cursor:pointer}
+.stickytools{position:sticky;top:0;background:#1b202b;padding:6px 0 10px;z-index:2}</style></head><body><main>
 <h1>🎭 Panique en coulisses</h1><p>Répétiteur — texte V3</p>
 <div class="card"><div class="row"><label>Je répète :</label><select id="role"><option>Christian</option><option>Patrice</option><option>Philippe</option><option>Carole</option><option>Florence</option><option>Pascale</option></select></div>
 <p class="progress" id="count">881 répliques chargées.</p>
@@ -8,6 +17,7 @@
 <div class="row" style="margin-top:14px"><label>Aller à la réplique</label><input id="jump" type="number" min="1" max="881" value="1"><button class="secondary" id="go">OK</button></div>
 </div>
 <div class="card"><div id="status">Chargement du moteur vocal…</div><p id="pos" class="progress"></p><div id="current" class="line">Prêt.</div><div id="hint" class="hint"></div></div>
+<div class="card"><div class="stickytools"><b>Texte intégral — défilement automatique</b><p class="muted" style="margin:.4em 0">La réplique en cours reste centrée. Touchez une réplique pour repartir de là.</p></div><div id="script" class="script"></div></div>
 <div class="card"><b>Tester les voix</b><div class="voicegrid" id="voicegrid"></div><p class="muted">Au premier passage d'une voix, son modèle peut prendre un peu de temps à se télécharger. Il est ensuite conservé en cache.</p></div>
 <script type="module">
 import { PocketTTS, chunksToWavBlob } from "./pocket/index.js";
@@ -21,6 +31,7 @@ const people={
  Pascale:{voice:"vera",rate:0.97,desc:"Vera",sample:"https://huggingface.co/kyutai/tts-voices/resolve/main/vctk/p229_023_enhanced.wav"}
 };
 const role=document.querySelector("#role"),status=document.querySelector("#status"),current=document.querySelector("#current"),pos=document.querySelector("#pos"),hint=document.querySelector("#hint"),speed=document.querySelector("#speed"),speedVal=document.querySelector("#speedVal");
+const scriptEl=document.querySelector("#script");
 let tts=null,i=0,running=false,audio=null,token=0;
 const voiceRefs=new Map();
 async function fetchVoicePcm(url){
@@ -45,7 +56,17 @@ async function getVoice(actor){
  return out;
 }
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-function showLine(x,silent=false){pos.textContent="Réplique "+(i+1)+" / "+dialogue.length;current.innerHTML='<span class="who">'+x.label+'</span> : '+(silent?'<span class="muted">À toi…</span>':escapeHtml(x.text));hint.style.display="none";}
+function renderScript(){
+ scriptEl.innerHTML=dialogue.map((x,k)=>'<div class="scriptline '+(x.actor===role.value?'mine':'')+'" data-k="'+k+'"><span class="num">'+(k+1)+'</span><span class="who">'+escapeHtml(x.label)+'</span> : <span class="txt">'+escapeHtml(x.text)+'</span></div>').join("");
+}
+function showLine(x,silent=false){
+ pos.textContent="Réplique "+(i+1)+" / "+dialogue.length;
+ current.innerHTML='<span class="who">'+x.label+'</span> : '+(silent?'<span class="muted">À toi…</span>':escapeHtml(x.text));
+ hint.style.display="none";
+ document.querySelectorAll(".scriptline.active").forEach(e=>e.classList.remove("active"));
+ const el=scriptEl.querySelector('[data-k="'+i+'"]');
+ if(el){el.classList.add("active");el.scrollIntoView({behavior:"smooth",block:"center"});}
+}
 function escapeHtml(s){return s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function gap(text){const words=text.split(/\s+/).length;return Math.max(1200,Math.min(9000,500+words*390/Number(speed.value)))}
 async function say(x,myToken){
@@ -79,6 +100,8 @@ document.querySelector("#prev").onclick=()=>{halt();i=Math.max(0,i-1);showLine(d
 document.querySelector("#hintBtn").onclick=()=>{const x=dialogue[i];if(x){hint.style.display="block";hint.innerHTML='<b>'+x.label+' :</b> '+escapeHtml(x.text)}};
 document.querySelector("#go").onclick=()=>{halt();i=Math.max(0,Math.min(dialogue.length-1,Number(document.querySelector("#jump").value||1)-1));showLine(dialogue[i],dialogue[i].actor===role.value)};
 speed.oninput=()=>speedVal.textContent=Number(speed.value).toFixed(2)+"×";
+role.onchange=()=>{renderScript();if(dialogue[i])showLine(dialogue[i],dialogue[i].actor===role.value)};
+scriptEl.onclick=e=>{const el=e.target.closest(".scriptline");if(!el)return;halt();i=Number(el.dataset.k);document.querySelector("#jump").value=i+1;showLine(dialogue[i],dialogue[i].actor===role.value)};
 const vg=document.querySelector("#voicegrid");for(const n of Object.keys(people)){vg.insertAdjacentHTML("beforeend",'<span>'+n+' <small class="muted">('+people[n].desc+')</small></span><button data-n="'+n+'">▶ Tester</button>')}
 vg.onclick=async e=>{
  const b=e.target.closest("button");if(!b||!tts)return;
@@ -93,6 +116,7 @@ vg.onclick=async e=>{
  }catch(err){status.innerHTML='<span class="err">✗ '+n+" : "+escapeHtml(String(err))+'</span>'}
  finally{b.disabled=false}
 };
+renderScript();
 try{
  status.textContent="Chargement de Pocket TTS français…";
  tts=new PocketTTS({language:"french_24l",quantized:true,voiceCloning:true,cache:true,cacheName:"panique-pocket-fr-v2"});
