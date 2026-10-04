@@ -20,14 +20,27 @@ const people={
  Pascale:{voice:"fr_FR-upmc-medium",rate:0.91,desc:"UPMC posé"}
 };
 const role=document.querySelector("#role"),status=document.querySelector("#status"),current=document.querySelector("#current"),pos=document.querySelector("#pos"),hint=document.querySelector("#hint"),speed=document.querySelector("#speed"),speedVal=document.querySelector("#speedVal");
-let tts=null,i=0,running=false,audio=null,token=0;const sessions=new Map();
-async function getSession(actor){const cfg=people[actor];if(!sessions.has(actor)){sessions.set(actor,new tts.TtsSession({voiceId:cfg.voice,fallbackStrategy:"auto"}));}return sessions.get(actor);}
+let tts=null,i=0,running=false,audio=null,token=0;
+let activeSession=null,activeVoice=null;
+async function getSession(actor){
+ const cfg=people[actor];
+ if(activeVoice!==cfg.voice || !activeSession){
+   activeSession=null;
+   activeVoice=null;
+   status.textContent="Chargement réel : "+cfg.voice+"…";
+   activeSession=new tts.TtsSession({voiceId:cfg.voice});
+   await activeSession.waitReady;
+   activeVoice=cfg.voice;
+ }
+ status.textContent="Voix active : "+activeVoice;
+ return activeSession;
+}
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function showLine(x,silent=false){pos.textContent="Réplique "+(i+1)+" / "+dialogue.length;current.innerHTML='<span class="who">'+x.label+'</span> : '+(silent?'<span class="muted">À toi…</span>':escapeHtml(x.text));hint.style.display="none";}
 function escapeHtml(s){return s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function gap(text){const words=text.split(/\s+/).length;return Math.max(1200,Math.min(9000,500+words*390/Number(speed.value)))}
 async function say(x,myToken){
- const cfg=people[x.actor]; status.textContent="Préparation de "+x.actor+"…";
+ const cfg=people[x.actor]; status.textContent="Préparation de "+x.actor+" — "+cfg.voice+"…";
  const session=await getSession(x.actor); const wav=await session.predict(x.text);
  if(myToken!==token)return;
  audio=new Audio(URL.createObjectURL(wav));audio.playbackRate=cfg.rate*Number(speed.value);
