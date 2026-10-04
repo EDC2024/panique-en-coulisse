@@ -20,14 +20,15 @@ const people={
  Pascale:{voice:"fr_FR-upmc-medium",rate:0.91,desc:"UPMC posé"}
 };
 const role=document.querySelector("#role"),status=document.querySelector("#status"),current=document.querySelector("#current"),pos=document.querySelector("#pos"),hint=document.querySelector("#hint"),speed=document.querySelector("#speed"),speedVal=document.querySelector("#speedVal");
-let tts=null,i=0,running=false,audio=null,token=0;
+let tts=null,i=0,running=false,audio=null,token=0;const sessions=new Map();
+async function getSession(actor){const cfg=people[actor];if(!sessions.has(actor)){sessions.set(actor,new tts.TtsSession({voiceId:cfg.voice,fallbackStrategy:"auto"}));}return sessions.get(actor);}
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function showLine(x,silent=false){pos.textContent="Réplique "+(i+1)+" / "+dialogue.length;current.innerHTML='<span class="who">'+x.label+'</span> : '+(silent?'<span class="muted">À toi…</span>':escapeHtml(x.text));hint.style.display="none";}
 function escapeHtml(s){return s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function gap(text){const words=text.split(/\s+/).length;return Math.max(1200,Math.min(9000,500+words*390/Number(speed.value)))}
 async function say(x,myToken){
  const cfg=people[x.actor]; status.textContent="Préparation de "+x.actor+"…";
- const wav=await tts.predict({text:x.text,voiceId:cfg.voice});
+ const session=await getSession(x.actor); const wav=await session.predict(x.text);
  if(myToken!==token)return;
  audio=new Audio(URL.createObjectURL(wav));audio.playbackRate=cfg.rate*Number(speed.value);
  await audio.play(); await new Promise(r=>{audio.onended=r;audio.onerror=r}); status.textContent="Lecture…";
@@ -50,6 +51,6 @@ document.querySelector("#hintBtn").onclick=()=>{const x=dialogue[i];if(x){hint.s
 document.querySelector("#go").onclick=()=>{halt();i=Math.max(0,Math.min(dialogue.length-1,Number(document.querySelector("#jump").value||1)-1));showLine(dialogue[i],dialogue[i].actor===role.value)};
 speed.oninput=()=>speedVal.textContent=Number(speed.value).toFixed(2)+"×";
 const vg=document.querySelector("#voicegrid");for(const n of Object.keys(people)){vg.insertAdjacentHTML("beforeend",'<span>'+n+' <small class="muted">('+people[n].desc+')</small></span><button data-n="'+n+'">▶ Tester</button>')}
-vg.onclick=async e=>{const b=e.target.closest("button");if(!b||!tts)return;const n=b.dataset.n;b.disabled=true;status.textContent="Test de "+n+"…";try{const w=await tts.predict({text:"Bonjour, je suis "+n+". On reprend le texte.",voiceId:people[n].voice});const a=new Audio(URL.createObjectURL(w));a.playbackRate=people[n].rate;await a.play();status.innerHTML='<span class="ok">✓ '+n+' fonctionne.</span>'}catch(err){status.innerHTML='<span class="err">✗ '+n+" : "+escapeHtml(String(err))+'</span>'}finally{b.disabled=false}};
+vg.onclick=async e=>{const b=e.target.closest("button");if(!b||!tts)return;const n=b.dataset.n;b.disabled=true;status.textContent="Test de "+n+"…";try{const session=await getSession(n); const w=await session.predict("Bonjour, je suis "+n+". On reprend le texte.");const a=new Audio(URL.createObjectURL(w));a.playbackRate=people[n].rate;await a.play();status.innerHTML='<span class="ok">✓ '+n+' fonctionne.</span>'}catch(err){status.innerHTML='<span class="err">✗ '+n+" : "+escapeHtml(String(err))+'</span>'}finally{b.disabled=false}};
 try{tts=await import("https://cdn.jsdelivr.net/npm/@realtimex/piper-tts-web@1.1.1/+esm");status.innerHTML='<span class="ok">✓ Moteur prêt.</span>';showLine(dialogue[0],dialogue[0].actor===role.value)}catch(e){status.innerHTML='<span class="err">Erreur de chargement : '+escapeHtml(String(e))+'</span>'}
 </script></main></body></html>
