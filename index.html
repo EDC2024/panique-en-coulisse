@@ -89,7 +89,7 @@ async function loop(){
  while(running&&i<dialogue.length&&my===token){
    const x=dialogue[i], mine=x.actor===role.value; showLine(x,mine);
    try{if(mine) await sleep(gap(x.text)); else await say(x,my)}catch(e){status.innerHTML='<span class="err">Erreur voix : '+escapeHtml(String(e))+'</span>';running=false;break}
-   if(running&&my===token){i++;await sleep(250)}
+   if(running&&my===token){i++;await sleep(500)}
  }
  if(i>=dialogue.length){running=false;status.innerHTML='<span class="ok">Fin du texte.</span>'}
 }
